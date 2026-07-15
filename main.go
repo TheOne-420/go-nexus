@@ -5,7 +5,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
 )
@@ -46,8 +48,28 @@ func pingHandler (w http.ResponseWriter, r *http.Request){
 	json.NewEncoder(w).Encode(map[string]string{"message": "pinged!"})
 }
 
+func recoveryMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				sentry.CurrentHub().Recover(err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main(){
 	godotenv.Load()
+
+	if err := sentry.Init(sentry.ClientOptions{
+		Dsn: os.Getenv("SENTRY_DSN"),
+	}); err != nil {
+		log.Printf("sentry init error: %v", err)
+	}
+	defer sentry.Flush(2 * time.Second)
+
 	hub := NewHub()
 	go hub.run()
 	mux := http.NewServeMux()
@@ -66,7 +88,8 @@ func main(){
 		port = "8080"
 	}
 	log.Println("Server started on :" + port)
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
+	if err := http.ListenAndServe(":"+port, recoveryMiddleware(mux)); err != nil {
+		sentry.CaptureException(err)
 		log.Fatal("ERROR: ", err)
 	}
 }

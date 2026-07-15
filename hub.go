@@ -7,6 +7,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/gorilla/websocket"
 	"github.com/redis/go-redis/v9"
 )
@@ -86,6 +87,7 @@ func (h *Hub) run() {
 				err := h.rdb.Publish(context.Background(), getEnv("REDIS_CHANNEL", "go-nexus"), msg).Err()
 				if err != nil{
 					log.Println("redis publish error: ", err)
+					sentry.CaptureException(err)
 				}
 		}
 	}

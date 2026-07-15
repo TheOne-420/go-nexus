@@ -9,5 +9,7 @@ services:
         sync: false
       - key: PORT
         value: "8080"
+      - key: SENTRY_DSN
+        sync: false
 
 
