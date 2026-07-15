@@ -29,9 +29,14 @@ func getEnv(key, fallback string) string {
 }
 
 func NewHub() *Hub{
-	rdb := redis.NewClient(&redis.Options{
-		Addr: getEnv("REDIS_ADDR", "localhost:6379"),
-		})
+	redisURL := getEnv("REDIS_URL", "redis://localhost:6379")
+	opts, err := redis.ParseURL(redisURL)
+	if err != nil {
+		opts = &redis.Options{
+			Addr: getEnv("REDIS_ADDR", "localhost:6379"),
+		}
+	}
+	rdb := redis.NewClient(opts)
 	return &Hub{
 		clients: make(map [*websocket.Conn]bool),
 		broadcast: make(chan []byte),

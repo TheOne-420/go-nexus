@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: go-nexus
+    runtime: go
+    buildCommand: go build -o go-nexus .
+    startCommand: ./go-nexus
+    envVars:
+      - key: REDIS_URL
+        sync: false
+      - key: PORT
+        value: "8080"
+
+
