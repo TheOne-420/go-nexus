@@ -4,51 +4,69 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/gorilla/websocket"
+	"github.com/joho/godotenv"
 )
 var upgrader = websocket.Upgrader{
+
 	CheckOrigin:  func(r *http.Request) bool {return true},
 }
-func wsHandler (w http.ResponseWriter, r *http.Request){
-	conn, err := upgrader.Upgrade(w, r, nil)
+func wsHandler (hub  *Hub) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request){
+		conn, err := upgrader.Upgrade(w, r, nil)
 
-	if err != nil{
-		log.Fatal(err)
-	}
-
-	log.Println("client connected")
-	for {
-		msgType, msg, err := conn.ReadMessage()d
 		if err != nil{
-			log.Fatal(err)
-			break
+			log.Println("upgrade error: ",err)
+			return
 		}
 
-		log.Printf("Recieved: %s",msg)
+		hub.register <- conn
 
-		err2 := conn.WriteMessage(msgType, msg)
-		if err2 != nil {
-					log.Println("write error:", err2)
-					break
-				}
+		defer func(){
+			hub.unregister <- conn
+		}()
 
+		for{
+			_, msg, err := conn.ReadMessage()
+			if err != nil{
+				log.Println("read error: ",err)
+				return
+			}
+			hub.broadcast <- msg
+
+		}
 	}
-
-	log.Println("client disconnected")
 }
+
+
 func pingHandler (w http.ResponseWriter, r *http.Request){
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "pinged!"})
 }
 
 func main(){
+	godotenv.Load()
+	hub := NewHub()
+	go hub.run()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ping", pingHandler)
-	mux.HandleFunc("/ws", wsHandler)
-	log.Println("Server starte on :8080")
-	if err := http.ListenAndServe(":8080", mux); err != nil {
+	mux.HandleFunc("/ws", wsHandler(hub))
+	mux.HandleFunc("GET /debug", func(w http.ResponseWriter, r *http.Request){
+		hub.mu.Lock()
+		defer hub.mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"connected_clients": len(hub.clients),
+		})
+	})
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Println("Server started on :" + port)
+	if err := http.ListenAndServe(":"+port, mux); err != nil {
 		log.Fatal("ERROR: ", err)
 	}
-
 }
