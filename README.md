@@ -1,6 +1,6 @@
 # go-nexus
 
-A WebSocket broadcast server backed by Redis pub/sub.
+A WebSocket broadcast server based on Redis pub/sub.
 
 Clients connect via WebSocket, send messages, and every message is broadcast to all other connected clients through Redis. Useful for real-time chat, live dashboards, or any app needing multi-instance pub/sub.
 
